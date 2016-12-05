@@ -11,4 +11,7 @@ public interface ApiInterface {
     @GET("get_posts")
     Call<PostResponse> getAllPosts(@Query("page") int page);
 
+    @GET("get_category_posts")
+    Call<PostResponse> getPostsForCategory(@Query("slug") String slug, @Query("page") int page);
+
 }

@@ -1,5 +1,6 @@
 package com.aalok.devnextdoor.activity;
 
+import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.support.design.widget.NavigationView;
@@ -13,14 +14,15 @@ import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
 
 import android.util.Log;
-import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.TextView;
 
 import com.aalok.devnextdoor.R;
+import com.aalok.devnextdoor.RecyclerItemClickListener;
 import com.aalok.devnextdoor.adapter.PostAdapter;
 import com.aalok.devnextdoor.apiClient.ApiClient;
 import com.aalok.devnextdoor.apiInterface.ApiInterface;
@@ -38,17 +40,20 @@ import retrofit2.Response;
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener {
 
-    List<Post> posts;
-
+    //Different List variables so they can store posts for different categories
+    PostResponse allPosts, thoughtPosts, tutorialPosts, experiencePosts, reviewPosts;
     RecyclerView recyclerView;
     SwipeRefreshLayout swipeRefreshLayout;
-    int page = 1, totalPages; //Used in incremental loading
-    int pastVisibleItems, visibleItemCount, totalItemCount;
-    private boolean isIncrementalLoading; //Used to check if  incremental loading is in progress
+    int pastVisibleItems, visibleItemCount, totalItemCount; //Used for Lazy loading in RecyclerView
+    private boolean isIncrementalLoading; //Used to check if Lazy loading is in progress
     LinearLayoutManager mLayoutManager;
     ProgressBar progressBar, incrementalProgressBar;
     LinearLayout loadErrorLayout;
 
+    //Indicates the current category of posts being displayed
+    //This string will be used throughout the Activity to check the current selected category
+    String selectedCategory;
+    TextView categoryTextView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -62,31 +67,64 @@ public class MainActivity extends AppCompatActivity
         DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
         ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
                 this, drawer, mToolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
-        drawer.setDrawerListener(toggle);
+        drawer.addDrawerListener(toggle);
         toggle.syncState();
 
         NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
         navigationView.setNavigationItemSelectedListener(this);
 
+        navigationView.setCheckedItem(R.id.nav_recent); //Recent Post is selected in Navigation Drawer
+
+        //Default selected category is Recent Posts when the App starts
+        selectedCategory = "RECENT POSTS";
+
         progressBar = (ProgressBar) findViewById(R.id.progressBar);
         incrementalProgressBar = (ProgressBar) findViewById(R.id.incrementalProgressBar);
         loadErrorLayout = (LinearLayout) findViewById(R.id.load_error_layout);
-
         recyclerView = (RecyclerView)findViewById(R.id.PostRecyclerView);
-        mLayoutManager = new LinearLayoutManager(this);
+        swipeRefreshLayout = (SwipeRefreshLayout)findViewById(R.id.swipeRefresh);
+        Button refreshButton = (Button) findViewById(R.id.refreshButton);
+        categoryTextView = (TextView) findViewById(R.id.categoryTextView);
 
+        //Set the TextView above the RecyclerView to reflect the current category being displayed
+        categoryTextView.setText(selectedCategory);
+
+        mLayoutManager = new LinearLayoutManager(this);
         recyclerView.setLayoutManager(mLayoutManager);
         recyclerView.setVisibility(View.GONE);
 
-        loadAllPosts(page, true); // First Load of all posts
+        // First Load of all posts
+        loadAllPosts(1, true);
 
-        swipeRefreshLayout = (SwipeRefreshLayout)findViewById(R.id.swipeRefresh);
         swipeRefreshLayout.setColorSchemeColors(Color.parseColor("#303F9F"), Color.parseColor("#8BC34A"), Color.GREEN, Color.parseColor("#3F51B5"));
         swipeRefreshLayout.setOnRefreshListener((new SwipeRefreshLayout.OnRefreshListener() {
             @Override
             public void onRefresh() {
 
-                loadAllPosts(1, true); // Refresh posts, same call as First Load
+          switch (selectedCategory)
+          {
+              case "RECENT POSTS":
+                  loadAllPosts(1, true); // Refresh posts, same call as First Load
+
+                  break;
+              case "TUTORIALS":
+                  loadPostsForCategory(1,true, getString(R.string.slug_tutorials));
+
+                  break;
+              case "THOUGHTS":
+                  loadPostsForCategory(1,true, getString(R.string.slug_thoughts));
+
+                  break;
+              case "EXPERIENCES":
+                  loadPostsForCategory(1,true, getString(R.string.slug_experiences));
+
+                  break;
+              case "REVIEWS":
+                  loadPostsForCategory(1,true, getString(R.string.slug_reviews));
+
+                  break;
+          }
+
                 onItemsLoadComplete();
 
             }
@@ -106,10 +144,38 @@ public class MainActivity extends AppCompatActivity
 
                     if ( (visibleItemCount + pastVisibleItems) >= totalItemCount)
                     {
-                        if(page < totalPages && !isIncrementalLoading) // check if there are Pages available to load & are not already loading
+                        PostResponse res = getPostResponseForCurrentCategory();
+                        int page = res.getPage();
+
+                        if(res.getPage() < Integer.parseInt(res.getPages()) && !isIncrementalLoading) // check if there are Pages available to load & are not already loading
                         {
                             page++;
-                            loadAllPosts(page, false); // Incremental Loading call
+                            res.setPage(page);
+
+                            switch (selectedCategory)
+                            {
+                                case "RECENT POSTS":
+                                    loadAllPosts(page, false);
+
+                                    break;
+                                case "TUTORIALS":
+                                    loadPostsForCategory(page,false, getString(R.string.slug_tutorials));
+
+                                    break;
+                                case "THOUGHTS":
+                                    loadPostsForCategory(page,false, getString(R.string.slug_thoughts));
+
+                                    break;
+                                case "EXPERIENCES":
+                                    loadPostsForCategory(page,false, getString(R.string.slug_experiences));
+
+                                    break;
+                                case "REVIEWS":
+                                    loadPostsForCategory(page,false, getString(R.string.slug_reviews));
+
+                                    break;
+                            }
+
                         }
 
                     }
@@ -117,7 +183,7 @@ public class MainActivity extends AppCompatActivity
             }
         });
 
-        Button refreshButton = (Button) findViewById(R.id.refreshButton);
+
         refreshButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -127,20 +193,131 @@ public class MainActivity extends AppCompatActivity
 
             }
         });
+
+        recyclerView.addOnItemTouchListener(
+                new RecyclerItemClickListener(getBaseContext(), recyclerView ,new RecyclerItemClickListener.OnItemClickListener() {
+                    @Override public void onItemClick(View view, int position) {
+
+                        Intent intent = new Intent(getBaseContext(), PostActivity.class);
+                        intent.putExtra("POST_TITLE", getPostResponseForCurrentCategory().getPosts().get(position).getTitle());
+                        intent.putExtra("POST_CATEGORY", getPostResponseForCurrentCategory().getPosts().get(position).getCategories()[0].getTitle());
+                        intent.putExtra("POST_THUMBNAIL_URL", getPostResponseForCurrentCategory().getPosts().get(position).getThumbnail().getMedium_large().getUrl());
+                        intent.putExtra("POST_CONTENT", getPostResponseForCurrentCategory().getPosts().get(position).getContent());
+                        intent.putExtra("POST_URL", getPostResponseForCurrentCategory().getPosts().get(position).getUrl());
+
+                        startActivity(intent);
+                    }
+
+                    @Override public void onLongItemClick(View view, int position) {
+
+                    }
+                })
+        );
     }
 
     void onItemsLoadComplete() {
 
         swipeRefreshLayout.setRefreshing(false); //Disable SwipeRefresh animation
-        page = 1; //Reset Page count
+        PostResponse res = getPostResponseForCurrentCategory();
+        res.setPage(1);
     }
 
-    private void loadAllPosts(int pageNumber,final boolean isFirstLoad)
+    @Override
+    public void onBackPressed() {
+        DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
+        if (drawer.isDrawerOpen(GravityCompat.START)) {
+            drawer.closeDrawer(GravityCompat.START);
+        } else {
+            super.onBackPressed();
+        }
+    }
+
+    @Override
+    public boolean onNavigationItemSelected(MenuItem item) {
+        // Handle navigation view item clicks here.
+        int id = item.getItemId();
+
+        if (id == R.id.nav_recent) {
+
+            selectedCategory = "RECENT POSTS";
+            categoryTextView.setText(selectedCategory);
+            if(allPosts!=null)
+            {
+                recyclerView.setAdapter(new PostAdapter(allPosts.getPosts(), R.layout.post_list_row, getBaseContext()));
+            }
+            else
+            {
+                loadAllPosts(1,true);
+            }
+
+        } else if (id == R.id.nav_tutorial) {
+
+            selectedCategory = getString(R.string.slug_tutorials).toUpperCase();
+            categoryTextView.setText(selectedCategory);
+            if(tutorialPosts!=null)
+            {
+                recyclerView.setAdapter(new PostAdapter(tutorialPosts.getPosts(), R.layout.post_list_row, getBaseContext()));
+            }
+            else
+            {
+                loadPostsForCategory(1,true, getString(R.string.slug_tutorials));
+            }
+
+
+        } else if (id == R.id.nav_thoughts) {
+
+            selectedCategory = getString(R.string.slug_thoughts).toUpperCase();
+            categoryTextView.setText(selectedCategory);
+            if(thoughtPosts!=null)
+            {
+                recyclerView.setAdapter(new PostAdapter(thoughtPosts.getPosts(), R.layout.post_list_row, getBaseContext()));
+
+            }
+            else
+            {
+                loadPostsForCategory(1,true, getString(R.string.slug_thoughts));
+            }
+
+
+        } else if (id == R.id.nav_experiences) {
+
+            selectedCategory =  getString(R.string.slug_experiences).toUpperCase();
+            categoryTextView.setText(selectedCategory);
+            if(experiencePosts!=null)
+            {
+                recyclerView.setAdapter(new PostAdapter(experiencePosts.getPosts(), R.layout.post_list_row, getBaseContext()));
+            }
+            else
+            {
+                loadPostsForCategory(1,true, getString(R.string.slug_experiences));
+            }
+
+
+        } else if (id == R.id.nav_reviews) {
+
+            selectedCategory = getString(R.string.slug_reviews).toUpperCase();
+            categoryTextView.setText(selectedCategory);
+            if(reviewPosts!=null)
+            {
+                recyclerView.setAdapter(new PostAdapter(reviewPosts.getPosts(), R.layout.post_list_row, getBaseContext()));
+            }
+            else
+            {
+                loadPostsForCategory(1,true, getString(R.string.slug_reviews));
+            }
+       }
+
+        DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
+        drawer.closeDrawer(GravityCompat.START);
+        return true;
+    }
+
+    private void loadPostsForCategory(int pageNumber,final boolean isFirstLoad, final String slug)
     {
 
         ApiInterface apiService =
                 ApiClient.getClient().create(ApiInterface.class);
-        Call<PostResponse> call = apiService.getAllPosts(pageNumber);
+        Call<PostResponse> call = apiService.getPostsForCategory(slug,pageNumber);
 
 
         if(isFirstLoad)
@@ -157,36 +334,32 @@ public class MainActivity extends AppCompatActivity
             @Override
             public void onResponse(Call<PostResponse>call, Response<PostResponse> response) {
 
-                final PostResponse postResponse = response.body();
-
-
-                if(isFirstLoad)
+                if(slug.toUpperCase().equals(selectedCategory))
                 {
-                    totalPages = Integer.parseInt(postResponse.getPages());
+                    PostResponse postsRes = getPostResponseForCurrentCategory();
 
-                    //Creating modifiable List fom array
-                    posts = new ArrayList(Arrays.asList(postResponse.getPosts()));
+                    if(isFirstLoad)
+                    {
+                        postsRes = response.body();
+                        setPostResponseForCategory(postsRes);
+                    }
+                    else
+                    {
+                        ArrayList<Post> temp = response.body().getPosts();
+                        postsRes.posts.addAll(temp);
+                        isIncrementalLoading = false;
+                    }
 
+                    recyclerView.setVisibility(View.VISIBLE);
+                    recyclerView.setAdapter(new PostAdapter(postsRes.getPosts(), R.layout.post_list_row, getBaseContext()));
+
+                    //Prevent from scrolling to Top when Incremental Loading occurs
+                    if(!isFirstLoad)
+                        recyclerView.scrollToPosition(pastVisibleItems + 1);
+
+                    progressBar.setVisibility(View.GONE);
+                    incrementalProgressBar.setVisibility(View.GONE);
                 }
-                else
-                {
-                    List<Post> temp = Arrays.asList(postResponse.getPosts());
-
-                    //Adding newly loaded posts to existing List
-                    posts.addAll(temp);
-                    isIncrementalLoading = false;
-
-                }
-
-                recyclerView.setVisibility(View.VISIBLE);
-                recyclerView.setAdapter(new PostAdapter(posts, R.layout.post_list_row, getBaseContext()));
-
-                //Prevent from scrolling to Top when Incremental Loading occurs
-                if(!isFirstLoad)
-                    recyclerView.scrollToPosition(pastVisibleItems + 1);
-
-                progressBar.setVisibility(View.GONE);
-                incrementalProgressBar.setVisibility(View.GONE);
 
             }
 
@@ -204,62 +377,143 @@ public class MainActivity extends AppCompatActivity
                     loadErrorLayout.setVisibility(View.VISIBLE);
                     recyclerView.setVisibility(View.GONE);
                 }
+                else
+                {
+                    isIncrementalLoading = false;
+                    incrementalProgressBar.setVisibility(View.GONE);
+                }
 
             }
         });
     }
 
-    @Override
-    public void onBackPressed() {
-        DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
-        if (drawer.isDrawerOpen(GravityCompat.START)) {
-            drawer.closeDrawer(GravityCompat.START);
-        } else {
-            super.onBackPressed();
+    private void loadAllPosts(int pageNumber,final boolean isFirstLoad)
+    {
+
+        ApiInterface apiService =
+                ApiClient.getClient().create(ApiInterface.class);
+        Call<PostResponse> call = apiService.getAllPosts(pageNumber);
+
+
+        if(isFirstLoad)
+        {
+            progressBar.setVisibility(View.VISIBLE);
         }
-    }
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.main, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
-
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
+        else
+        {
+            isIncrementalLoading = true;
+            incrementalProgressBar.setVisibility(View.VISIBLE);
         }
 
-        return super.onOptionsItemSelected(item);
+        call.enqueue(new Callback<PostResponse>() {
+            @Override
+            public void onResponse(Call<PostResponse>call, Response<PostResponse> response) {
+
+                if(selectedCategory.equals(getString(R.string.category_recent).toUpperCase()))
+                {
+                    final PostResponse postResponse = response.body();
+
+                    if(isFirstLoad)
+                    {
+                        allPosts = postResponse;
+                    }
+                    else
+                    {
+                        ArrayList<Post> temp = postResponse.getPosts();
+                        allPosts.posts.addAll(temp);
+                        isIncrementalLoading = false;
+                    }
+
+                    recyclerView.setVisibility(View.VISIBLE);
+                    recyclerView.setAdapter(new PostAdapter(allPosts.getPosts(), R.layout.post_list_row, getBaseContext()));
+
+                    //Prevent from scrolling to Top when Incremental Loading occurs
+                    if(!isFirstLoad)
+                        recyclerView.scrollToPosition(pastVisibleItems + 1);
+
+                    progressBar.setVisibility(View.GONE);
+                    incrementalProgressBar.setVisibility(View.GONE);
+                }
+            }
+
+            @Override
+            public void onFailure(Call<PostResponse>call, Throwable t) {
+
+                // Log error here since request failed
+                Log.e("API Call Failed", t.toString());
+                progressBar.setVisibility(View.GONE);
+
+                if(isFirstLoad)
+                {
+                    //Show Error Layout since no posts to display
+
+                    loadErrorLayout.setVisibility(View.VISIBLE);
+                    recyclerView.setVisibility(View.GONE);
+                }
+                else
+                {
+                    isIncrementalLoading = false;
+                    incrementalProgressBar.setVisibility(View.GONE);
+                }
+
+            }
+        });
     }
 
-    @SuppressWarnings("StatementWithEmptyBody")
-    @Override
-    public boolean onNavigationItemSelected(MenuItem item) {
-        // Handle navigation view item clicks here.
-        int id = item.getItemId();
+    private PostResponse getPostResponseForCurrentCategory()
+    {
+        if(selectedCategory != null)
+        {
+            switch (selectedCategory)
+            {
+                case "RECENT POSTS":
+                    return allPosts;
 
-        if (id == R.id.nav_camera) {
-            // Handle the camera action
-        } else if (id == R.id.nav_gallery) {
+                case "TUTORIALS":
+                    return tutorialPosts;
 
-        } else if (id == R.id.nav_slideshow) {
+                case "THOUGHTS":
+                    return thoughtPosts;
 
-        } else if (id == R.id.nav_manage) {
+                case "EXPERIENCES":
+                    return experiencePosts;
 
+                case "REVIEWS":
+                    return reviewPosts;
+
+            }
         }
 
-        DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
-        drawer.closeDrawer(GravityCompat.START);
-        return true;
+        return  allPosts;
     }
 
+    private void setPostResponseForCategory(PostResponse res)
+    {
+        if(selectedCategory != null)
+        {
+            switch (selectedCategory)
+            {
+                case "RECENT POSTS":
+                    allPosts = res;
+
+                    break;
+                case "TUTORIALS":
+                    tutorialPosts = res;
+
+                    break;
+                case "THOUGHTS":
+                    thoughtPosts = res;
+
+                    break;
+                case "EXPERIENCES":
+                    experiencePosts = res;
+
+                    break;
+                case "REVIEWS":
+                    reviewPosts = res;
+                    break;
+            }
+        }
+    }
 }
+

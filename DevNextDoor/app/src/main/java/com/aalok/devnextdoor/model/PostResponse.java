@@ -2,9 +2,17 @@ package com.aalok.devnextdoor.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.util.ArrayList;
+
 
 @JsonIgnoreProperties(ignoreUnknown=true)
 public class PostResponse {
+
+    public PostResponse() {
+        this.page = 1;
+    }
+
+    private int page; //used for Lazy loading
 
     private String count;
 
@@ -14,7 +22,15 @@ public class PostResponse {
 
     private String count_total;
 
-    public Post[] posts;
+    public ArrayList<Post> posts;
+
+    public int getPage() {
+        return page;
+    }
+
+    public void setPage(int page) {
+        this.page = page;
+    }
 
     public String getCount ()
     {
@@ -46,12 +62,12 @@ public class PostResponse {
         this.pages = pages;
     }
 
-    public Post[] getPosts ()
+    public ArrayList<Post> getPosts ()
     {
         return posts;
     }
 
-    public void setPosts (Post[] posts)
+    public void setPosts (ArrayList<Post> posts)
     {
         this.posts = posts;
     }

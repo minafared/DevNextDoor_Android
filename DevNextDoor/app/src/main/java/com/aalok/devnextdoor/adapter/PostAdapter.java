@@ -25,12 +25,13 @@ import com.aalok.devnextdoor.model.Post;
 import com.aalok.devnextdoor.R;
 import com.nostra13.universalimageloader.core.ImageLoader;
 
+import java.util.ArrayList;
 import java.util.List;
 
 
 public class PostAdapter extends RecyclerView.Adapter<PostAdapter.PostViewHolder> {
 
-    private List<Post> posts;
+    private ArrayList<Post> posts;
     private int rowLayout;
     private Context context;
     private int lastPosition = -1;
@@ -56,7 +57,7 @@ public class PostAdapter extends RecyclerView.Adapter<PostAdapter.PostViewHolder
 
     }
 
-    public PostAdapter(List<Post> posts, int rowLayout, Context context) {
+    public PostAdapter(ArrayList<Post> posts, int rowLayout, Context context) {
         this.posts = posts;
         this.rowLayout = rowLayout;
         this.context = context;
@@ -96,14 +97,8 @@ public class PostAdapter extends RecyclerView.Adapter<PostAdapter.PostViewHolder
             imageLoader.displayImage(posts.get(position).getThumbnail().getMedium_large().getUrl(),holder.PostImageView);
 
         }
-        else
-        {
-            holder.PostImageView.setColorFilter(Color.argb(255, 234, 234, 234));
-        }
-
         // Here you apply the animation when the view is bound
         setAnimation(holder.cardView, position);
-
 
     }
 

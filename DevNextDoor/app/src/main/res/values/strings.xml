@@ -4,11 +4,19 @@
     <string name="navigation_drawer_open">Open navigation drawer</string>
     <string name="navigation_drawer_close">Close navigation drawer</string>
 
-    <string name="action_settings">Settings</string>
-    <string name="action_refresh">Refresh</string>
-
-    <string name="load_error_message">Oops, could not load posts</string>
-    <string name="load_error_message2">Check your Internet connection</string>
+    <string name="load_error_message">Oops! Could not load posts</string>
+    <string name="load_error_message2">Check you Internet Connection</string>
     <string name="try_again">TRY AGAIN</string>
+
+    <string name="category_thoughts">Thoughts</string>
+    <string name="category_recent">Recent Posts</string>
+    <string name="category_tutorials">Tutorials</string>
+    <string name="category_reviews">Reviews</string>
+    <string name="category_experiences">Experiences</string>
+
+    <string name="slug_thoughts">thoughts</string>
+    <string name="slug_tutorials">tutorials</string>
+    <string name="slug_reviews">reviews</string>
+    <string name="slug_experiences">experiences</string>
 
 </resources>
